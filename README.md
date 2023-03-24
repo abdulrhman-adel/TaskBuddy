@@ -18,16 +18,14 @@ pip install -r requirments.txt
 ## Usage
 
 ```python
-import foobar
+import nextcord
+from nextcord import Member, Interaction
+from nextcord.ext import commands, tasks
 
-# returns 'words'
-foobar.pluralize('word')
-
-# returns 'geese'
-foobar.pluralize('goose')
-
-# returns 'phenomenon'
-foobar.singularize('phenomena')
+@nextcord.slash_command(name="NAME_OF_COMMAND", description="DESCRIPTION_OF_COMMAND",
+                          guild_ids=config_data["GUILD_IDS"])
+    async def ping(self, interaction: Interaction):
+        await interaction.response.send_message("RESPONSE_MESSAGE")
 ```
 
 ## Contributing
