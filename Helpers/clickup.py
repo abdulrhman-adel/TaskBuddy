@@ -2,59 +2,22 @@ from Helpers import config
 import sqlite3
 import requests
 from flask import request
-
+import json
 
 config = config.read_config()
 conn = sqlite3.connect('database/database.sqlite', check_same_thread=False)
 
 
-def get_user_token(code):
-    url = "https://api.clickup.com/api/v2/oauth/token"
-    query = {
-        "client_id": config["CLICKUP_CLIENT_ID"],
-        "client_secret": config["CLICKUP_CLIENT_SECRET"],
-        "code": code
-    }
-
-    response = requests.post(url, params=query)
-    data: object = response.json()
-    token = data['access_token']
-    return token
-
-
-def store_user_token(user_id, token):
-    cur = conn.cursor()
-    cur.execute("""INSERT INTO users (discord_id, clickup_token) 
-               VALUES (?,?);""", (user_id, token))
-    conn.commit()
-    return
-
-
-def get_token_by_id(user_id):
-    cur = conn.cursor()
-    cur.execute("""SELECT clickup_token FROM users WHERE discord_id = ?;""", (user_id,))
-    data = cur.fetchone()
-    return data[0]
-
-
-def callback():
-    user_id = request.args.get('state')
-    code = request.args.get('code')
-    token = get_user_token(code)
-    store_user_token(user_id, token)
-
-    return "Your code is %s" % code + "& your state is %s" % user_id + "token %s" % token
-
-
 class Client:
-    def __init__(self, access_token):
+    def __init__(self, access_token, user_id):
         self.client_id = config["CLICKUP_CLIENT_ID"]
         self.client_secret = config["CLICKUP_CLIENT_SECRET"]
         self.redirect_url = config["CLICKUP_REDIRECT_URI"]
         self.access_token = access_token
+        self.user_id = user_id
         self.base_url = 'https://api.clickup.com/api'
-        # self.oauth2_url = f'https://app.clickup.com/api?client_id={self.client_id}&redirect_uri={self.redirect_url}'
-        # self.oauth2_code = None
+        self.oauth2_url = f'https://app.clickup.com/api?client_id={self.client_id}&redirect_uri={self.redirect_url}&state={self.user_id}'
+        self.oauth2_code = None
 
     def set_oauth2_code(self, code):
         self.oauth2_code = code
@@ -117,3 +80,68 @@ class Client:
 
     def get_view_tasks(self, view_id):
         return self._request('get', f'/v2/view/{view_id}/task')
+
+    def get_list_tasks(self, list_id):
+        return self._request('get', f'/v2/list/{list_id}/task')
+
+
+
+def get_user_token(code):
+    url = "https://api.clickup.com/api/v2/oauth/token"
+    query = {
+        "client_id": config["CLICKUP_CLIENT_ID"],
+        "client_secret": config["CLICKUP_CLIENT_SECRET"],
+        "code": code
+    }
+
+    response = requests.post(url, params=query)
+    data: object = response.json()
+    token = data['access_token']
+    return token
+
+
+def store_user_token(user_id, token):
+    cur = conn.cursor()
+    cur.execute("""INSERT INTO users (discord_id, clickup_token) 
+               VALUES (?,?);""", (user_id, token))
+    conn.commit()
+    return
+
+
+def get_token_by_id(user_id):
+    cur = conn.cursor()
+    cur.execute("""SELECT clickup_token FROM users WHERE discord_id = ?;""", (user_id,))
+    data = cur.fetchone()
+    return data[0]
+
+
+def callback():
+    user_id = request.args.get('state')
+    code = request.args.get('code')
+    token = get_user_token(code)
+    store_user_token(user_id, token)
+
+    return "Your code is %s" % code + "& your state is %s" % user_id + "token %s" % token
+
+
+def get_members(team):
+    teams = json.dumps(team, indent=4, sort_keys=True)
+    teams = json.loads(teams)
+    for team in teams:
+        members = team['members']
+        return members
+
+def get_team_id(team):
+    teams = json.dumps(team, indent=4, sort_keys=True)
+    teams = json.loads(teams)
+    for team in teams:
+        team_id = team['id']
+        return team_id
+
+def get_space_id(space):
+    spaces = json.dumps(space, indent=4, sort_keys=True)
+    spaces = json.loads(spaces)
+    for space in spaces:
+        space_id = space['id']
+        return space_id
+
