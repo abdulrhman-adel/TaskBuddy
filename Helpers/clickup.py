@@ -81,9 +81,8 @@ class Client:
     def get_view_tasks(self, view_id):
         return self._request('get', f'/v2/view/{view_id}/task')
 
-    def get_list_tasks(self, list_id):
+    def get_tasks(self, list_id):
         return self._request('get', f'/v2/list/{list_id}/task')
-
 
 
 def get_user_token(code):
@@ -131,12 +130,14 @@ def get_members(team):
         members = team['members']
         return members
 
+
 def get_team_id(team):
     teams = json.dumps(team, indent=4, sort_keys=True)
     teams = json.loads(teams)
     for team in teams:
         team_id = team['id']
         return team_id
+
 
 def get_space_id(space):
     spaces = json.dumps(space, indent=4, sort_keys=True)
@@ -145,3 +146,100 @@ def get_space_id(space):
         space_id = space['id']
         return space_id
 
+
+############################################################################################################
+
+
+def add_channel(user_id, channel_id, folder_id):
+    cur = conn.cursor()
+    cur.execute("""INSERT INTO channels (discord_id, channel_id, folder_id) 
+               VALUES (?,?,?);""", (user_id, channel_id, folder_id))
+    conn.commit()
+    return
+
+
+def get_folder_by_user_id(user_id):
+    cur = conn.cursor()
+    cur.execute("""SELECT folder_id FROM channels WHERE discord_id = ?;""", (user_id,))
+    data = cur.fetchone()
+    return data[0]
+
+
+def get_channel_by_user_id(user_id):
+    cur = conn.cursor()
+    cur.execute("""SELECT channel_id FROM channels WHERE discord_id = ?;""", (user_id,))
+    data = cur.fetchone()
+    return data[0]
+
+
+def get_user_by_channel_id(channel_id):
+    cur = conn.cursor()
+    cur.execute("""SELECT discord_id FROM channels WHERE channel_id = ?;""", (channel_id,))
+    data = cur.fetchone()
+    return data[0]
+
+
+def get_user_by_folder_id(folder_id):
+    cur = conn.cursor()
+    cur.execute("""SELECT discord_id FROM channels WHERE folder_id = ?;""", (folder_id,))
+    data = cur.fetchone()
+    return data[0]
+
+
+def get_folder_id_by_channel_id(user_id, channel_id):
+    cur = conn.cursor()
+    cur.execute("""SELECT folder_id FROM channels WHERE discord_id = ? AND channel_id = ?;""", (user_id, channel_id))
+    data = cur.fetchone()
+    return data[0]
+
+def get_user_by_space_id(space_id):
+    cur = conn.cursor()
+    cur.execute("""SELECT discord_id FROM channels WHERE space_id = ?;""", (space_id,))
+    data = cur.fetchone()
+    return data[0]
+
+
+def get_user_by_list_id(list_id):
+    cur = conn.cursor()
+    cur.execute("""SELECT discord_id FROM channels WHERE list_id = ?;""", (list_id,))
+    data = cur.fetchone()
+    return data[0]
+
+
+def get_user_by_task_id(task_id):
+    cur = conn.cursor()
+    cur.execute("""SELECT discord_id FROM channels WHERE task_id = ?;""", (task_id,))
+    data = cur.fetchone()
+    return data[0]
+
+
+def get_user_by_team_id(team_id):
+    cur = conn.cursor()
+    cur.execute("""SELECT discord_id FROM channels WHERE team_id = ?;""", (team_id,))
+    data = cur.fetchone()
+
+
+###
+
+def store_channel_id(discord_id, channel_id, space_id, folder_id, team_id):
+    cur = conn.cursor()
+    cur.execute("""SELECT COUNT(*) FROM channels WHERE discord_id = ? AND channel_id = ?;""", (discord_id, channel_id))
+    data = cur.fetchone()
+    if data[0] == 0:
+        cur.execute("""INSERT INTO channels (discord_id, channel_id, space_id, folder_id, team_id) 
+                       VALUES (?,?,?,?,?);""", (discord_id, channel_id, space_id, folder_id, team_id))
+        conn.commit()
+        return
+    else:
+        cur.execute("""UPDATE channels SET space_id = ?, folder_id = ?, team_id = ? WHERE discord_id = ? AND channel_id = ?;""",
+                    (space_id, folder_id, team_id, discord_id, channel_id))
+        conn.commit()
+        return
+
+
+def get_folder_by_id(folders, folder_id):
+    folders = json.dumps(folders, indent=4, sort_keys=True)
+    folders = json.loads(folders)
+    for folder in folders:
+        if folder['id'] == folder_id:
+            return folder

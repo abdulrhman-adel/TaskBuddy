@@ -12,7 +12,7 @@ Nova is a discord bot it bought to life using a Python library called Nextcord, 
 Use the package manager [pip](https://pip.pypa.io/en/stable/) to install packages required to run Nova.
 
 ```bash
-pip install -r requirments.txt
+pip install -r requirements.txt
 ```
 
 ## Usage
