@@ -4,6 +4,7 @@ from nextcord.ext import commands, tasks
 from nextcord.ext.commands import has_permissions, MissingPermissions
 from nextcord.utils import get
 
+# TODO: Use slash commands instead of normal commands
 
 class Admin(commands.Cog):
 

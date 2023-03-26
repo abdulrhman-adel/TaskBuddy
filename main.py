@@ -11,6 +11,7 @@ import sqlite3
 
 config_data = config.read_config()
 intents = nextcord.Intents.default()
+intents.message_content = True
 bot = commands.Bot(intents=intents, command_prefix='!')
 
 

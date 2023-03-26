@@ -47,7 +47,7 @@ class Client:
             return result
 
         else:
-            raise Exception(f'Api call failed: {response.status_code}: {response.text}')
+            raise Exception(f'Api call failed: {response.status_code}: {response.text} {params}')
 
     def get_activities(self):
         pass
@@ -84,6 +84,17 @@ class Client:
     def get_tasks(self, list_id):
         return self._request('get', f'/v2/list/{list_id}/task')
 
+    def create_task(self, list_id, name, description, assignees, task_due_date, tags):
+        return self._request('post', f'/v2/list/{list_id}/task', {
+            'name': name,
+            'description': description,
+            'assignees': assignees,
+            "tags": tags,
+            "priority": 3,
+            "due_date": task_due_date,
+            "due_date_time": False,
+        })
+
 
 def get_user_token(code):
     url = "https://api.clickup.com/api/v2/oauth/token"
@@ -99,17 +110,31 @@ def get_user_token(code):
     return token
 
 
-def store_user_token(user_id, token):
+def store_user_token(user_id, token, channel_id):
     cur = conn.cursor()
-    cur.execute("""INSERT INTO users (discord_id, clickup_token) 
-               VALUES (?,?);""", (user_id, token))
+    cur.execute("""INSERT INTO users (discord_id, clickup_token, channel_id) 
+               VALUES (?,?,?);""", (user_id, token, channel_id))
     conn.commit()
     return
 
-
-def get_token_by_id(user_id):
+def delete_user_token(user_id, channel_id):
     cur = conn.cursor()
-    cur.execute("""SELECT clickup_token FROM users WHERE discord_id = ?;""", (user_id,))
+    cur.execute("""DELETE FROM users WHERE discord_id = ? AND channel_id = ?;""", (user_id, channel_id))
+    conn.commit()
+    return
+
+def check_if_user_exists(user_id, channel_id):
+    cur = conn.cursor()
+    cur.execute("""SELECT * FROM users WHERE discord_id = ? AND channel_id = ?;""", (user_id, channel_id))
+    data = cur.fetchone()
+    if data is None:
+        return False
+    else:
+        return True
+
+def get_token_by_id(user_id, channel_id):
+    cur = conn.cursor()
+    cur.execute("""SELECT clickup_token FROM users WHERE discord_id = ? AND channel_id = ?;""", (user_id, channel_id))
     data = cur.fetchone()
     return data[0]
 
@@ -192,6 +217,7 @@ def get_folder_id_by_channel_id(user_id, channel_id):
     data = cur.fetchone()
     return data[0]
 
+
 def get_user_by_space_id(space_id):
     cur = conn.cursor()
     cur.execute("""SELECT discord_id FROM channels WHERE space_id = ?;""", (space_id,))
@@ -231,10 +257,18 @@ def store_channel_id(discord_id, channel_id, space_id, folder_id, team_id):
         conn.commit()
         return
     else:
-        cur.execute("""UPDATE channels SET space_id = ?, folder_id = ?, team_id = ? WHERE discord_id = ? AND channel_id = ?;""",
-                    (space_id, folder_id, team_id, discord_id, channel_id))
+        cur.execute(
+            """UPDATE channels SET space_id = ?, folder_id = ?, team_id = ? WHERE discord_id = ? AND channel_id = ?;""",
+            (space_id, folder_id, team_id, discord_id, channel_id))
         conn.commit()
         return
+
+
+def delete_channel_id(discord_id, channel_id):
+    cur = conn.cursor()
+    cur.execute("""DELETE FROM channels WHERE discord_id = ? AND channel_id = ?;""", (discord_id, channel_id))
+    conn.commit()
+    return
 
 
 def get_folder_by_id(folders, folder_id):
@@ -243,3 +277,7 @@ def get_folder_by_id(folders, folder_id):
     for folder in folders:
         if folder['id'] == folder_id:
             return folder
+
+
+def get_json(obj):
+    return json.dumps(obj, indent=4, sort_keys=True)

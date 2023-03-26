@@ -1,11 +1,12 @@
 import nextcord
-from nextcord import Member, Interaction, File, Embed, ButtonStyle, Colour, SelectOption
+from nextcord import Interaction, ButtonStyle
 from nextcord.ui import View, Button, Select
-from nextcord.ext import commands, tasks
+from nextcord.ext import commands
 from Helpers import config, clickup, ui
+import json
+
 
 # TODO: Add error handling, logging
-# TODO: if user is not in database, send message to user to sign in
 
 class Clickup(commands.Cog):
 
@@ -21,15 +22,19 @@ class Clickup(commands.Cog):
               self.config_data["CLICKUP_REDIRECT_URI"] + f"&state={user_id}"
         await interaction.response.send_message(url, ephemeral=True)
 
-    # TODO: Decrese respond time
     # TODO: Use defer method instead of send_message directly to avoid errors
 
     @nextcord.slash_command(name="listfolders", description="List available folders",
                             guild_ids=config_data["GUILD_IDS"])
     async def listfolders(self, interaction: Interaction):
         user_id = interaction.user.id
+        channel_id = interaction.channel_id
+        check = clickup.check_if_user_exists(user_id, channel_id)
+        if check is False:
+            await interaction.response.send_message("You are not signed in, please sign in first", ephemeral=True)
+            return
         await interaction.response.defer()
-        token = clickup.get_token_by_id(user_id)
+        token = clickup.get_token_by_id(user_id, channel_id)
         teams = clickup.Client(token, user_id).get_teams()
         team_id = clickup.get_team_id(teams)
         spaces = clickup.Client(token, user_id).get_spaces(team_id)
@@ -66,7 +71,12 @@ class Clickup(commands.Cog):
                             guild_ids=config_data["GUILD_IDS"])
     async def listmembers(self, interaction: Interaction):
         user_id = interaction.user.id
-        token = clickup.get_token_by_id(user_id)
+        channel_id = interaction.channel_id
+        check = clickup.check_if_user_exists(user_id, channel_id)
+        if check is False:
+            await interaction.response.send_message("You are not signed in, please sign in first", ephemeral=True)
+            return
+        token = clickup.get_token_by_id(user_id, channel_id)
         teams = clickup.Client(token, user_id).get_teams()
         members = clickup.get_members(teams)
         current_page = 0
@@ -93,13 +103,108 @@ class Clickup(commands.Cog):
         view.add_item(next_button)
         sent_message = await interaction.response.send_message(embeds=[embed], view=view)
 
-    @nextcord.slash_command(name="chooseboard", description="Show chosen board",
+    @nextcord.slash_command(name="listoflists", description="List available Lists",
                             guild_ids=config_data["GUILD_IDS"])
-    async def chooseboard(self, interaction: Interaction):
+    async def listoflists(self, interaction: Interaction):
         user_id = interaction.user.id
         channel_id = interaction.channel_id
+        check = clickup.check_if_user_exists(user_id, channel_id)
+        if check is False:
+            await interaction.response.send_message("You are not signed in, please sign in first", ephemeral=True)
+            return
         await interaction.response.defer()
-        token = clickup.get_token_by_id(user_id)
+        token = clickup.get_token_by_id(user_id, channel_id)
+        channel_id = interaction.channel_id
+        folder_id = clickup.get_folder_id_by_channel_id(user_id, channel_id)
+        # tasks = clickup.Client(token, user_id).get_tasks(folder_id)
+        lists = clickup.Client(token, user_id).get_lists(None, folder_id)
+        current_page = 0
+
+        async def next_page_callback(interaction: Interaction):
+            nonlocal current_page, sent_message, embed, view, lists
+            current_page = ui.next_page(current_page, lists)
+            embed = ui.create_lists_embed(current_page, lists)
+            await interaction.response.edit_message(embeds=[embed], view=view)
+
+        def previous_page_callback(interaction: Interaction):
+            nonlocal current_page, sent_message, embed, view, lists
+            current_page = ui.previous_page(current_page)
+            embed = ui.create_lists_embed(current_page, lists)
+            return interaction.response.edit_message(embeds=[embed], view=view)
+
+        embed = ui.create_lists_embed(current_page, lists)
+        next_button = Button(style=ButtonStyle.green, label="Next", custom_id="next")
+        previous_button = Button(style=ButtonStyle.red, label="Previous", custom_id="previous")
+        next_button.callback = next_page_callback
+        previous_button.callback = previous_page_callback
+        view = View(timeout=180)
+        view.add_item(previous_button)
+        view.add_item(next_button)
+        sent_message = await interaction.followup.send(embeds=[embed], view=view)
+
+    @nextcord.slash_command(name="listtasks", description="List available tasks on a folder",
+                            guild_ids=config_data["GUILD_IDS"])
+    async def listtasks(self, interaction: Interaction):
+        user_id = interaction.user.id
+        channel_id = interaction.channel_id
+        check = clickup.check_if_user_exists(user_id, channel_id)
+        if check is False:
+            await interaction.response.send_message("You are not signed in, please sign in first", ephemeral=True)
+            return
+        await interaction.response.defer()
+        token = clickup.get_token_by_id(user_id, channel_id)
+        folder_id = clickup.get_folder_id_by_channel_id(user_id, channel_id)
+        lists = clickup.Client(token, user_id).get_lists(None, folder_id)
+        current_page = 0
+
+        async def list_dropdown_callbacks(interaction: Interaction):
+            nonlocal list_sent_message, lists, view, list_dropdown, channel_id, user_id, folder_id, current_page
+            list_id = list_dropdown.values[0]
+            tasks = clickup.Client(token, user_id).get_tasks(list_id)
+            tasks = json.dumps(tasks)
+            tasks = json.loads(tasks)
+            tasks = tasks['tasks']
+
+            async def next_page_callback(interaction: Interaction):
+                nonlocal current_page, list_sent_message, embed, view, tasks
+                current_page = ui.next_page(current_page, tasks)
+                embed = ui.create_tasks_embed(current_page, tasks)
+                await interaction.response.edit_message(embeds=[embed], view=view)
+
+            def previous_page_callback(interaction: Interaction):
+                nonlocal current_page, list_sent_message, embed, view, tasks
+                current_page = ui.previous_page(current_page)
+                embed = ui.create_tasks_embed(current_page, tasks)
+                return interaction.response.edit_message(embeds=[embed], view=view)
+
+            embed = ui.create_tasks_embed(current_page, tasks)
+            next_button = Button(style=ButtonStyle.green, label="Next", custom_id="next")
+            previous_button = Button(style=ButtonStyle.red, label="Previous", custom_id="previous")
+            next_button.callback = next_page_callback
+            previous_button.callback = previous_page_callback
+            view = View(timeout=180)
+            view.add_item(previous_button)
+            view.add_item(next_button)
+            await interaction.response.edit_message(embeds=[embed], view=view)
+
+        list_options = ui.create_lists_options(lists)
+        list_dropdown = Select(placeholder="Select a list", options=list_options, min_values=1, max_values=1)
+        list_dropdown.callback = list_dropdown_callbacks
+        view = View(timeout=180)
+        view.add_item(list_dropdown)
+        list_sent_message = await interaction.followup.send("Select a list", view=view)
+
+    @nextcord.slash_command(name="choosefolder", description="Choose folder to work on this channel",
+                            guild_ids=config_data["GUILD_IDS"])
+    async def choosefolder(self, interaction: Interaction):
+        user_id = interaction.user.id
+        channel_id = interaction.channel_id
+        check = clickup.check_if_user_exists(user_id, channel_id)
+        if check is False:
+            await interaction.response.send_message("You are not signed in, please sign in first", ephemeral=True)
+            return
+        await interaction.response.defer()
+        token = clickup.get_token_by_id(user_id, channel_id)
         teams = clickup.Client(token, user_id).get_teams()
         team_id = clickup.get_team_id(teams)
         spaces = clickup.Client(token, user_id).get_spaces(team_id)
@@ -127,43 +232,60 @@ class Clickup(commands.Cog):
         view.add_item(folder_dropdown)
         sent_message = await interaction.followup.send("Select a folder", view=view)
 
-
-    @nextcord.slash_command(name="listoflists", description="List available tasks",
+    @nextcord.slash_command(name="createtask", description="Create a task in a list",
                             guild_ids=config_data["GUILD_IDS"])
-    async def listoflists(self, interaction: Interaction):
+    async def createtask(self, interaction: Interaction):
         user_id = interaction.user.id
+        channel_id = interaction.channel_id
+        check = clickup.check_if_user_exists(user_id, channel_id)
+        if check is False:
+            await interaction.response.send_message("You are not signed in, please sign in first", ephemeral=True)
+            return
         await interaction.response.defer()
-        token = clickup.get_token_by_id(user_id)
+        token = clickup.get_token_by_id(user_id, channel_id)
         channel_id = interaction.channel_id
         folder_id = clickup.get_folder_id_by_channel_id(user_id, channel_id)
-        # tasks = clickup.Client(token, user_id).get_tasks(folder_id)
         lists = clickup.Client(token, user_id).get_lists(None, folder_id)
-        current_page = 0
 
-        async def next_page_callback(interaction: Interaction):
-            nonlocal current_page, sent_message, embed, view, lists
-            current_page = ui.next_page(current_page, lists)
-            embed = ui.create_lists_embed(current_page, lists)
-            await interaction.response.edit_message(embeds=[embed], view=view)
-        def previous_page_callback(interaction: Interaction):
-            nonlocal current_page, sent_message, embed, view, lists
-            current_page = ui.previous_page(current_page)
-            embed = ui.create_lists_embed(current_page, lists)
-            return interaction.response.edit_message(embeds=[embed], view=view)
+        async def list_dropdown_callback(interaction: Interaction):
+            nonlocal list_sent_message, lists, view, list_dropdown, channel_id, user_id, folder_id
+            list_id = list_dropdown.values[0]
+            await interaction.response.send_modal(ui.CreateTaskModal(list_id))
 
-        embed = ui.create_lists_embed(current_page, lists)
-        next_button = Button(style=ButtonStyle.green, label="Next", custom_id="next")
-        previous_button = Button(style=ButtonStyle.red, label="Previous", custom_id="previous")
-        next_button.callback = next_page_callback
-        previous_button.callback = previous_page_callback
+        list_options = ui.create_lists_options(lists)
+        list_dropdown = Select(placeholder="Select a list", options=list_options, min_values=1, max_values=1)
+        list_dropdown.callback = list_dropdown_callback
         view = View(timeout=180)
-        view.add_item(previous_button)
-        view.add_item(next_button)
-        sent_message = await interaction.followup.send(embeds=[embed], view=view)
+        view.add_item(list_dropdown)
+        list_sent_message = await interaction.followup.send("Select a list", view=view)
 
+    @nextcord.slash_command(name="clear", description="Clear all data from this channel",
+                            guild_ids=config_data["GUILD_IDS"])
+    async def clear(self, interaction: Interaction):
+        user_id = interaction.user.id
+        channel_id = interaction.channel_id
+        check = clickup.check_if_user_exists(user_id, channel_id)
+        if check is False:
+            await interaction.response.send_message("You are not signed in, please sign in first", ephemeral=True)
+            return
+        channel_id = interaction.channel_id
+        clickup.delete_channel_id(user_id, channel_id)
+        await interaction.response.send_message("Channel cleared")
 
-
+    @nextcord.slash_command(name="remove", description="Remove user data",
+                            guild_ids=config_data["GUILD_IDS"])
+    async def remove(self, interaction: Interaction):
+        user_id = interaction.user.id
+        channel_id = interaction.channel_id
+        check = clickup.check_if_user_exists(user_id, channel_id)
+        if check is False:
+            await interaction.response.send_message("You are not signed in, please sign in first", ephemeral=True)
+            return
+        clickup.delete_user_token(user_id, channel_id)
+        await interaction.response.send_message("User data removed")
 
 
 def setup(bot):
     bot.add_cog(Clickup(bot))
+
+# TODO: Clean up code
