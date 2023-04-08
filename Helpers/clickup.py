@@ -140,10 +140,12 @@ def get_token_by_id(user_id, channel_id):
 
 
 def callback():
-    user_id = request.args.get('state')
+    state = request.args.get('state').split('_')
+    user_id = state[0]
+    channel_id = state[1]
     code = request.args.get('code')
     token = get_user_token(code)
-    store_user_token(user_id, token)
+    store_user_token(user_id, token, channel_id)
 
     return "Your code is %s" % code + "& your state is %s" % user_id + "token %s" % token
 
