@@ -24,9 +24,9 @@ class Clickup(commands.Cog):
 
     # TODO: Use defer method instead of send_message directly to avoid errors
 
-    @nextcord.slash_command(name="listfolders", description="List available folders",
+    @nextcord.slash_command(name="folders", description="List available folders",
                             guild_ids=config_data["GUILD_IDS"])
-    async def listfolders(self, interaction: Interaction):
+    async def folders(self, interaction: Interaction):
         user_id = interaction.user.id
         channel_id = interaction.channel_id
         check = clickup.check_if_user_exists(user_id, channel_id)
@@ -67,9 +67,9 @@ class Clickup(commands.Cog):
 
     # TODO: Make button disabled when it reaches the end of the list
 
-    @nextcord.slash_command(name="listmembers", description="List available members",
+    @nextcord.slash_command(name="members", description="List available members",
                             guild_ids=config_data["GUILD_IDS"])
-    async def listmembers(self, interaction: Interaction):
+    async def members(self, interaction: Interaction):
         user_id = interaction.user.id
         channel_id = interaction.channel_id
         check = clickup.check_if_user_exists(user_id, channel_id)
@@ -103,9 +103,9 @@ class Clickup(commands.Cog):
         view.add_item(next_button)
         sent_message = await interaction.response.send_message(embeds=[embed], view=view)
 
-    @nextcord.slash_command(name="listoflists", description="List available Lists",
+    @nextcord.slash_command(name="lists", description="List available Lists",
                             guild_ids=config_data["GUILD_IDS"])
-    async def listoflists(self, interaction: Interaction):
+    async def lists(self, interaction: Interaction):
         user_id = interaction.user.id
         channel_id = interaction.channel_id
         check = clickup.check_if_user_exists(user_id, channel_id)
@@ -142,9 +142,9 @@ class Clickup(commands.Cog):
         view.add_item(next_button)
         sent_message = await interaction.followup.send(embeds=[embed], view=view)
 
-    @nextcord.slash_command(name="listtasks", description="List available tasks on a folder",
+    @nextcord.slash_command(name="tasks", description="List available tasks on a folder",
                             guild_ids=config_data["GUILD_IDS"])
-    async def listtasks(self, interaction: Interaction):
+    async def tasks(self, interaction: Interaction):
         user_id = interaction.user.id
         channel_id = interaction.channel_id
         check = clickup.check_if_user_exists(user_id, channel_id)

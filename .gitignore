@@ -246,3 +246,4 @@ cython_debug/
 config.json
 test.py
 data/
+tests/
