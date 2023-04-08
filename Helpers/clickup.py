@@ -147,7 +147,7 @@ def callback():
     token = get_user_token(code)
     store_user_token(user_id, token, channel_id)
 
-    return "Your code is %s" % code + " & your state is %s" % user_id + " & your token is %s" % token + "& your channel is %s" % channel_id
+    return "Thanks for authorizing your account, please close this window & try the bot in your server."
 
 
 def get_members(team):
